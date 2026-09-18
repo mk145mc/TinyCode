@@ -1,21 +1,20 @@
-let pyodideReady = false;
+let pyodide = null;
 
 async function init() {
   const output = document.getElementById('output');
   output.textContent = '加载 Python 中...';
   try {
-    window.pyodide = await loadPyodide({
+    pyodide = await loadPyodide({
       indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/'
     });
-    pyodideReady = true;
     output.textContent = '✅ Python 已就绪';
   } catch (err) {
     output.textContent = '❌ 加载失败: ' + err.message;
   }
 }
 
-async function run() {
-  if (!pyodideReady) {
+function run() {
+  if (!pyodide) {
     alert('Python 还在加载，请稍等...');
     return;
   }
@@ -23,17 +22,17 @@ async function run() {
   const output = document.getElementById('output');
   output.textContent = '运行中...';
 
-  // 重定向 stdout/stderr 到内存，这样能抓到 print 的内容
-  window.pyodide.runPython(`
-import sys, io
-sys.stdout = io.StringIO()
-sys.stderr = io.StringIO()
-`);
-
   try {
-    await window.pyodide.runPythonAsync(code);
-    const stdout = window.pyodide.runPython('sys.stdout.getvalue()');
-    const stderr = window.pyodide.runPython('sys.stderr.getvalue()');
+    // 每次运行前重新重定向 stdout/stderr
+    pyodide.runPython('import sys, io; sys.stdout = io.StringIO(); sys.stderr = io.StringIO()');
+    
+    // 同步执行用户代码
+    pyodide.runPython(code);
+    
+    // 取出输出
+    const stdout = pyodide.runPython('sys.stdout.getvalue()');
+    const stderr = pyodide.runPython('sys.stderr.getvalue()');
+    
     const result = (stdout || '') + (stderr || '');
     output.textContent = result || '(执行完成，无输出)';
   } catch (e) {
