@@ -1,14 +1,17 @@
 let pyodideReady = false;
 
 async function init() {
-  document.getElementById('output').textContent = '加载 Python 中...';
-  await loadPyodide({
-    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/'
-  }).then((py) => {
-    window.pyodide = py;
+  const output = document.getElementById('output');
+  output.textContent = '加载 Python 中...';
+  try {
+    window.pyodide = await loadPyodide({
+      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/'
+    });
     pyodideReady = true;
-    document.getElementById('output').textContent = '✅ Python 已就绪';
-  });
+    output.textContent = '✅ Python 已就绪';
+  } catch (err) {
+    output.textContent = '❌ 加载失败: ' + err.message;
+  }
 }
 
 async function run() {
@@ -19,10 +22,22 @@ async function run() {
   const code = document.getElementById('code').value;
   const output = document.getElementById('output');
   output.textContent = '运行中...';
+
+  // 重定向 stdout/stderr 到内存，这样能抓到 print 的内容
+  window.pyodide.runPython(`
+import sys, io
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+`);
+
   try {
-    window.pyodide.runPython(code);
+    await window.pyodide.runPythonAsync(code);
+    const stdout = window.pyodide.runPython('sys.stdout.getvalue()');
+    const stderr = window.pyodide.runPython('sys.stderr.getvalue()');
+    const result = (stdout || '') + (stderr || '');
+    output.textContent = result || '(执行完成，无输出)';
   } catch (e) {
-    output.textContent = e;
+    output.textContent = '❌ 错误:\n' + e;
   }
 }
 
